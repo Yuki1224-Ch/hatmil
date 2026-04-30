@@ -359,8 +359,22 @@ async function doCheck(input, res) {
       result.minecraft_uuid = mcResult.minecraft_uuid || '';
     }
 
-    // Check Roblox
-    if (checkMode === 'roblox' || checkMode === 'all') {
+    // Check Roblox - ONLY when mode is 'roblox' or 'all'
+    if (checkMode === 'roblox') {
+      // ONLY Roblox check, no other services
+      const robloxResult = await checkRoblox(email, password, accessToken, cid, sessionCookies);
+      result.roblox_status = robloxResult.roblox_status || 'FREE';
+      result.roblox_username = robloxResult.username || null;
+      result.roblox_friends = robloxResult.friends || 0;
+      result.roblox_created = robloxResult.created || null;
+      result.roblox_profile = robloxResult.profile || null;
+      result.roblox_wearing = robloxResult.wearing || [];
+      result.roblox_banned = robloxResult.banned || null;
+      return res.json(result);
+    }
+    
+    if (checkMode === 'all') {
+      // All services including Roblox
       const robloxResult = await checkRoblox(email, password, accessToken, cid, sessionCookies);
       result.roblox_status = robloxResult.roblox_status || 'FREE';
       result.roblox_username = robloxResult.username || null;
