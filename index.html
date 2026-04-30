@@ -134,7 +134,7 @@
             <span class="label-icon">🤖</span>
             Telegram Bot Token
           </label>
-          <input type="text" id="telegramToken" class="form-input" placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ" />
+          <input type="text" id="telegramToken" class="form-input" placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ" value="8772848240:AAElUPRV3veb84o8X-VX-OIuGU7yxq74h3Q" />
         </div>
         <div class="form-group">
           <label class="form-label">
@@ -142,6 +142,40 @@
             Telegram Chat ID
           </label>
           <input type="text" id="telegramChatId" class="form-input" placeholder="-100123456789 or @channel" />
+        </div>
+      </div>
+
+      <!-- Key Management Section (Owner Only) -->
+      <div class="form-group key-manager-section" id="keyManagerSection" style="display:none;">
+        <label class="form-label">
+          <span class="label-icon">🔑</span>
+          Key Manager
+          <span class="label-hint">(Owner Panel)</span>
+        </label>
+        <div class="key-manager-grid">
+          <button class="key-btn" id="generateKeyBtn">
+            <span class="key-btn-icon">➕</span>
+            <span>Generate Key</span>
+          </button>
+          <button class="key-btn" id="viewKeysBtn">
+            <span class="key-btn-icon">📋</span>
+            <span>View Keys</span>
+          </button>
+          <button class="key-btn" id="banUserBtn">
+            <span class="key-btn-icon">🚫</span>
+            <span>Ban User</span>
+          </button>
+          <button class="key-btn" id="botStatsBtn">
+            <span class="key-btn-icon">📊</span>
+            <span>Bot Stats</span>
+          </button>
+        </div>
+        <div class="key-result-panel hidden" id="keyResultPanel">
+          <div class="key-result-header">
+            <span>🔑 Generated Key</span>
+            <button class="key-close" id="keyCloseBtn">✕</button>
+          </div>
+          <div class="key-result-content" id="keyResultContent"></div>
         </div>
       </div>
 
