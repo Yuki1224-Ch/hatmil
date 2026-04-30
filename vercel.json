@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/checker", "destination": "/api/checker.js" },
+    { "source": "/api/bot", "destination": "/api/bot.js" },
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ]
 }

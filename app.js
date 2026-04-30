@@ -61,6 +61,14 @@ const el = {
   proxyFormats:      $('proxyFormats'),
   telegramToken:     $('telegramToken'),
   telegramChatId:    $('telegramChatId'),
+  keyManagerSection: $('keyManagerSection'),
+  generateKeyBtn:    $('generateKeyBtn'),
+  viewKeysBtn:       $('viewKeysBtn'),
+  banUserBtn:        $('banUserBtn'),
+  botStatsBtn:       $('botStatsBtn'),
+  keyResultPanel:    $('keyResultPanel'),
+  keyResultContent:  $('keyResultContent'),
+  keyCloseBtn:       $('keyCloseBtn'),
   modeGrid:          $('modeGrid'),
   threads:           $('threads'),
   threadValue:       $('threadValue'),
@@ -394,7 +402,7 @@ async function startScan() {
   // Reset results
   allResults = {
     allHits: [], microsoft: [], psn: [], steam: [],
-    supercell: [], tiktok: [], minecraft: [], twoFA: []
+    supercell: [], tiktok: [], minecraft: [], roblox: [], twoFA: []
   };
 
   State.sessionId  = generateUUID();
@@ -501,6 +509,7 @@ async function startScan() {
       { name: 'Hits_Supercell.txt', data: allResults.supercell  },
       { name: 'Hits_TikTok.txt',    data: allResults.tiktok     },
       { name: 'Hits_Minecraft.txt', data: allResults.minecraft  },
+      { name: 'Hits_Roblox.txt',    data: allResults.roblox     },
     ];
 
     for (const f of filesToSend) {
@@ -552,6 +561,10 @@ async function processLine(line) {
         allResults.supercell.push(`${email}:${password} | ${result.supercell_games.join(', ')}`);
       if (result.tiktok_username)    allResults.tiktok.push(`${email}:${password} | @${result.tiktok_username}`);
       if (result.minecraft_username) allResults.minecraft.push(`${email}:${password} | ${result.minecraft_username}`);
+      if (result.roblox_username) {
+        const wearingStr = result.roblox_wearing && result.roblox_wearing.length > 0 ? result.roblox_wearing.join(', ') : '';
+        allResults.roblox.push(`${email}:${password} | Username = ${result.roblox_username} | Friends = ${result.roblox_friends || 0} | Banned = ${result.roblox_banned || 'No'} | Created = ${result.roblox_created || 'Unknown'} | Profile = ${result.roblox_profile || ''} | Wearing = [${wearingStr}]`);
+      }
 
       addHitFeedEntry({ email, password, result });
       showToast(`✅ HIT: ${email}`, 'success');
@@ -844,3 +857,145 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSavedConfig();
   initAutoSave();
 });
+// ───────────────────────────────────────────────────────────────────────────
+// KEY MANAGER FUNCTIONS (Owner Only)
+// ───────────────────────────────────────────────────────────────────────────
+const OWNER_ID = '5028065177';
+const BOT_TOKEN = '8772848240:AAElUPRV3veb84o8X-VX-OIuGU7yxq74h3Q';
+
+async function initKeyManager() {
+  // Show key manager section if token matches owner
+  const token = el.telegramToken.value.trim();
+  if (token === BOT_TOKEN) {
+    el.keyManagerSection.style.display = 'block';
+    
+    // Add event listeners
+    el.generateKeyBtn.addEventListener('click', () => generateKey('24h'));
+    el.viewKeysBtn.addEventListener('click', viewKeys);
+    el.banUserBtn.addEventListener('click', showBanPanel);
+    el.botStatsBtn.addEventListener('click', getBotStats);
+    el.keyCloseBtn.addEventListener('click', () => {
+      el.keyResultPanel.classList.add('hidden');
+    });
+  }
+}
+
+async function apiCall(action, data = {}) {
+  try {
+    const res = await fetch('/api/checker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...data })
+    });
+    return await res.json();
+  } catch (e) {
+    console.error('API call error:', e);
+    return { error: e.message };
+  }
+}
+
+async function generateKey(duration = '24h') {
+  showToast('Generating key...', 'info');
+  
+  const result = await apiCall('generate_key', { duration, ownerId: OWNER_ID });
+  
+  if (result.key) {
+    el.keyResultContent.innerHTML = `
+      <div class="key-item">
+        <strong>✅ Key Generated</strong>
+        <code>${result.key}</code>
+        <div style="margin-top:8px;font-size:0.85rem;color:#a5b4fc;">
+          Duration: ${duration}<br>
+          Expires: ${new Date(result.expiresAt).toLocaleString()}
+        </div>
+      </div>
+    `;
+    el.keyResultPanel.classList.remove('hidden');
+    showToast('Key generated successfully!', 'success');
+  } else {
+    showToast(result.error || 'Failed to generate key', 'error');
+  }
+}
+
+async function viewKeys() {
+  showToast('Loading keys...', 'info');
+  
+  const result = await apiCall('list_keys', { ownerId: OWNER_ID });
+  
+  if (result.keys && result.keys.length > 0) {
+    let html = '';
+    result.keys.forEach((key, i) => {
+      const expires = new Date(key.expiresAt);
+      const isExpired = expires < new Date();
+      const statusClass = isExpired ? 'expired' : 'active';
+      const statusText = isExpired ? '⛔ Expired' : '✅ Active';
+      
+      html += `
+        <div class="key-item">
+          <strong>#${i + 1}</strong> 
+          <span class="key-status ${statusClass}">${statusText}</span>
+          <code>${key.key}</code>
+          <div style="margin-top:8px;font-size:0.85rem;color:#a5b4fc;">
+            Created: ${new Date(key.createdAt).toLocaleString()}<br>
+            Expires: ${expires.toLocaleString()}
+          </div>
+        </div>
+      `;
+    });
+    el.keyResultContent.innerHTML = html;
+  } else {
+    el.keyResultContent.innerHTML = '<div class="key-item">📭 No keys found.</div>';
+  }
+  
+  el.keyResultPanel.classList.remove('hidden');
+  showToast('Keys loaded!', 'success');
+}
+
+async function showBanPanel() {
+  const userId = prompt('Enter User ID to ban:');
+  if (userId) {
+    const result = await apiCall('ban_user', { userId, ownerId: OWNER_ID });
+    if (result.ok) {
+      showToast(`User ${userId} banned!`, 'success');
+    } else {
+      showToast(result.error || 'Failed to ban user', 'error');
+    }
+  }
+}
+
+async function getBotStats() {
+  showToast('Loading stats...', 'info');
+  
+  const result = await apiCall('get_stats', {});
+  
+  if (result.totalKeys !== undefined) {
+    el.keyResultContent.innerHTML = `
+      <div class="key-item">
+        <strong>📊 Bot Statistics</strong><br><br>
+        🔑 Total Keys: ${result.totalKeys}<br>
+        ✅ Active Keys: ${result.activeKeys}<br>
+        ⛔ Expired Keys: ${result.totalKeys - result.activeKeys}<br>
+        🚫 Banned Users: ${result.bannedUsers || 0}<br>
+        📈 Total Checks: ${result.stats?.totalChecks || 0}<br>
+        🎯 Total Hits: ${result.stats?.totalHits || 0}
+      </div>
+    `;
+    el.keyResultPanel.classList.remove('hidden');
+    showToast('Stats loaded!', 'success');
+  } else {
+    showToast(result.error || 'Failed to load stats', 'error');
+  }
+}
+
+// Update init function to include key manager
+const originalInit = document.addEventListener;
+document.addEventListener = function(type, listener, options) {
+  if (type === 'DOMContentLoaded') {
+    const originalListener = listener;
+    listener = function() {
+      originalListener();
+      initKeyManager();
+    };
+  }
+  return originalInit.call(this, type, listener, options);
+};

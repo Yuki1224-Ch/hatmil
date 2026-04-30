@@ -1055,3 +1055,132 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   font-size: .72rem;
   opacity: .8;
 }
+
+/* ── KEY MANAGER SECTION ── */
+.key-manager-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.1));
+  border-radius: 16px;
+  border: 1px solid rgba(99,102,241,0.2);
+}
+
+.key-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.key-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15));
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.key-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25));
+  box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+}
+
+.key-btn-icon {
+  font-size: 1.5rem;
+}
+
+.key-btn span:last-child {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Key Result Panel */
+.key-result-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(99,102,241,0.3);
+}
+
+.key-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #a5b4fc;
+}
+
+.key-close {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.key-close:hover {
+  background: rgba(239,68,68,0.2);
+}
+
+.key-result-content {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #e0e7ff;
+}
+
+.key-item {
+  padding: 10px;
+  margin: 8px 0;
+  background: rgba(99,102,241,0.1);
+  border-radius: 8px;
+  border-left: 3px solid #6366f1;
+}
+
+.key-item code {
+  display: block;
+  margin-top: 6px;
+  padding: 8px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 6px;
+  word-break: break-all;
+  color: #22c55e;
+}
+
+.key-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.key-status.active {
+  background: rgba(34,197,94,0.2);
+  color: #22c55e;
+}
+
+.key-status.expired {
+  background: rgba(239,68,68,0.2);
+  color: #ef4444;
+}
+
+@media (max-width: 768px) {
+  .key-manager-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
