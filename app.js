@@ -30,7 +30,7 @@ const State = {
   stats: {
     total: 0, checked: 0, hits: 0, twoFA: 0, bads: 0,
     msPremium: 0, msFree: 0,
-    psnHits: 0, steamHits: 0, supercellHits: 0, tiktokHits: 0, minecraftHits: 0,
+    psnHits: 0, steamHits: 0, supercellHits: 0, tiktokHits: 0, minecraftHits: 0, robloxHits: 0,
     cpm: 0, startTime: 0, currentEmail: ''
   }
 };
@@ -84,6 +84,7 @@ const el = {
   svcSupercellCount: $('svcSupercellCount'),
   svcTiktokCount:    $('svcTiktokCount'),
   svcMinecraftCount: $('svcMinecraftCount'),
+  svcRobloxCount:    $('svcRobloxCount'),
   feedLog:           $('feedLog'),
   feedClear:         $('feedClear'),
   telegramStatus:    $('telegramStatus'),
@@ -326,6 +327,7 @@ async function checkAccount(email, password, checkMode) {
     if (result.supercell_games && result.supercell_games.length > 0) State.stats.supercellHits++;
     if (result.tiktok_username) State.stats.tiktokHits++;
     if (result.minecraft_username) State.stats.minecraftHits++;
+    if (result.roblox_username) State.stats.robloxHits++;
   }
 
   return result;
@@ -402,7 +404,7 @@ async function startScan() {
   State.stats = {
     total: lines.length, checked: 0, hits: 0, twoFA: 0, bads: 0,
     msPremium: 0, msFree: 0,
-    psnHits: 0, steamHits: 0, supercellHits: 0, tiktokHits: 0, minecraftHits: 0,
+    psnHits: 0, steamHits: 0, supercellHits: 0, tiktokHits: 0, minecraftHits: 0, robloxHits: 0,
     cpm: 0, startTime: Date.now(), currentEmail: ''
   };
 
@@ -477,7 +479,8 @@ async function startScan() {
       `• Steam Hits: <b>${State.stats.steamHits}</b>\n` +
       `• Supercell: <b>${State.stats.supercellHits}</b>\n` +
       `• Minecraft: <b>${State.stats.minecraftHits}</b>\n` +
-      `• TikTok: <b>${State.stats.tiktokHits}</b>\n\n` +
+      `• TikTok: <b>${State.stats.tiktokHits}</b>\n` +
+      `• Roblox: <b>${State.stats.robloxHits}</b>\n\n` +
       `<b>⏱ Stats:</b>\n` +
       `• Time: ${timeStr}\n` +
       `• Speed: ${State.stats.cpm} CPM\n\n` +
@@ -611,6 +614,7 @@ function updateUI() {
   el.svcSupercellCount.textContent  = stats.supercellHits || 0;
   el.svcTiktokCount.textContent     = stats.tiktokHits    || 0;
   el.svcMinecraftCount.textContent  = stats.minecraftHits || 0;
+  el.svcRobloxCount.textContent     = stats.robloxHits    || 0;
 }
 
 function animateNumber(elem, target) {
@@ -636,7 +640,7 @@ function resetDashboard(total) {
   el.svcMsPremium.textContent = '0'; el.svcMsFree.textContent = '0';
   el.svcPsn.textContent = '0'; el.svcSteamCount.textContent = '0';
   el.svcSupercellCount.textContent = '0'; el.svcTiktokCount.textContent = '0';
-  el.svcMinecraftCount.textContent = '0';
+  el.svcMinecraftCount.textContent = '0'; el.svcRobloxCount.textContent = '0';
   el.feedLog.innerHTML = '';
   el.telegramStatus.classList.add('hidden');
   el.stopBtn.classList.remove('hidden');
@@ -693,6 +697,7 @@ function showFinalReport(stats, timeStr) {
     { label: 'Supercell',     value: stats.supercellHits || 0, cls: 'pink'   },
     { label: 'TikTok',        value: stats.tiktokHits    || 0, cls: 'pink'   },
     { label: 'Minecraft',     value: stats.minecraftHits || 0, cls: 'green'  },
+    { label: 'Roblox',        value: stats.robloxHits    || 0, cls: 'blue'   },
     { label: 'Total Checked', value: stats.checked       || 0, cls: ''       },
   ];
 
