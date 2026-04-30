@@ -3,6 +3,10 @@
  * Exact match to hatmil.py working logic
  */
 
+// Owner configuration
+const OWNER_ID = '5028065177';
+const BOT_TOKEN = '8772848240:AAElUPRV3veb84o8X-VX-OIuGU7yxq74h3Q';
+
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -36,6 +40,16 @@ export default async function handler(req, res) {
         return await telegramSendText(input, res);
       case 'telegram_document':
         return await telegramSendDocument(input, res);
+      case 'generate_key':
+        return await generateKey(input, res);
+      case 'list_keys':
+        return await listKeys(input, res);
+      case 'ban_user':
+        return await banUser(input, res);
+      case 'get_stats':
+        return await getStats(input, res);
+      case 'handle_bot_update':
+        return await handleBotUpdate(input, res);
       default:
         return res.json({ error: 'Unknown action: ' + action });
     }
@@ -902,6 +916,76 @@ async function checkMicrosoftSubscriptions(email, password, accessToken, cid, se
 // ─────────────────────────────────────────────────────────────────────────────
 // TELEGRAM HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// KEY MANAGEMENT API FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+const KeyDB = {
+  keys: new Map(),
+  bannedUsers: new Set()
+};
+
+async function generateKey(input, res) {
+  const { duration, ownerId } = input;
+  if (ownerId !== OWNER_ID) {
+    return res.json({ error: "Unauthorized" });
+  }
+  
+  const keyId = Math.random().toString(36).substring(2, 10);
+  const key = `KEY-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date();
+  const expiresAt = parseDuration(duration || "24h", now);
+  
+  const keyData = {
+    id: keyId,
+    key: key,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    duration: duration || "24h"
+  };
+  
+  KeyDB.keys.set(keyId, keyData);
+  return res.json(keyData);
+}
+
+function parseDuration(duration, fromDate) {
+  const match = duration.match(/^(\d+)(h|d|m)$/i);
+  if (!match) throw new Error("Invalid duration");
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  const result = new Date(fromDate);
+  switch (unit) {
+    case "h": result.setHours(result.getHours() + value); break;
+    case "d": result.setDate(result.getDate() + value); break;
+    case "m": result.setMonth(result.getMonth() + value); break;
+  }
+  return result;
+}
+
+async function listKeys(input, res) {
+  const keys = Array.from(KeyDB.keys.values());
+  return res.json({ keys });
+}
+
+async function banUser(input, res) {
+  const { userId, ownerId } = input;
+  if (ownerId !== OWNER_ID) {
+    return res.json({ error: "Unauthorized" });
+  }
+  KeyDB.bannedUsers.add(String(userId));
+  return res.json({ ok: true });
+}
+
+async function getStats(input, res) {
+  const keys = Array.from(KeyDB.keys.values());
+  const activeKeys = keys.filter(k => new Date(k.expiresAt) > new Date()).length;
+  return res.json({
+    totalKeys: keys.length,
+    activeKeys,
+    bannedUsers: KeyDB.bannedUsers.size,
+    stats: { totalChecks: 0, totalHits: 0 }
+  });
+}
+
 async function telegramSendMessage(input, res) {
   const token = input.token || '';
   const chatId = input.chatId || '';
@@ -1004,6 +1088,24 @@ async function telegramSendDocument(input, res) {
     return res.json({ ok: resp.ok || false });
   } catch (e) {
     console.error('Telegram document error:', e);
+    return res.json({ ok: false, error: e.message });
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// BOT UPDATE HANDLER - Proxy to bot.js
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleBotUpdate(input, res) {
+  const update = input.update;
+  
+  // Forward to bot.js handler
+  try {
+    const botHandler = await import("./bot.js");
+    return await botHandler.default({ 
+      method: "POST", 
+      body: { action: "handle_update", update } 
+    }, res);
+  } catch (e) {
+    console.error("Bot handler error:", e);
     return res.json({ ok: false, error: e.message });
   }
 }
